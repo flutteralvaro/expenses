@@ -1,0 +1,723 @@
+MAIN
+
+import 'dart:ui';
+import 'dart:io';
+
+import 'package:expenses/components/transaction_form.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+
+import 'components/chart.dart';
+import 'components/transaction_form.dart';
+import 'components/transaction_list.dart';
+import 'models/transaction.dart';
+import 'dart:math';
+
+main() => runApp(ExpensesApp());
+
+class ExpensesApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: MyHomePage(),
+      theme: ThemeData(
+        primarySwatch: Colors.purple,
+        accentColor: Colors.amber,
+        fontFamily: 'Quicksand',
+        textTheme: ThemeData.light().textTheme.copyWith(
+              headline6: TextStyle(
+                fontFamily: 'OpenSans',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+        appBarTheme: AppBarTheme(
+          textTheme: ThemeData.light().textTheme.copyWith(
+                headline6: TextStyle(
+                  fontFamily: 'OpenSans',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+        ),
+      ),
+    );
+  }
+}
+
+class MyHomePage extends StatefulWidget {
+  @override
+  _MyHomePageState createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  final List<Transaction> _transactions = [];
+  bool _showChart = false;
+
+  List<Transaction> get _recentTransactions {
+    return _transactions
+        .where(
+            (tr) => tr.date.isAfter(DateTime.now().subtract(Duration(days: 7))))
+        .toList();
+  }
+
+  _addTransaction(String title, double value, DateTime date) {
+    final newTransaction = Transaction(
+      id: Random().nextDouble().toString(),
+      title: title,
+      value: value,
+      date: date,
+    );
+
+    setState(() {
+      _transactions.add(newTransaction);
+    });
+    Navigator.of(context).pop();
+  }
+
+  _removeTransaction(String id) {
+    setState(() {
+      _transactions.removeWhere((tr) => tr.id == id);
+    });
+  }
+
+  _openTransactionFormModal(BuildContext context) {
+    showModalBottomSheet(
+        context: context,
+        builder: (_) {
+          return TransactionForm(_addTransaction);
+        });
+  }
+
+  Widget _getIconButton(IconData icon, Function fn) {
+    return Platform.isIOS == false
+        ? GestureDetector(onTap: fn, child: Icon(icon))
+        : IconButton(icon: Icon(icon), onPressed: fn);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    bool isLandscape = mediaQuery.orientation == Orientation.landscape;
+
+    final iconList =
+        Platform.isIOS == false ? CupertinoIcons.refresh : Icons.list;
+    final chartList =
+        Platform.isIOS == false ? CupertinoIcons.refresh : Icons.show_chart;
+
+    final actions = [
+      if (isLandscape)
+        _getIconButton(
+          _showChart ? iconList : chartList,
+          () {
+            setState(() {
+              _showChart = !_showChart;
+            });
+          },
+        ),
+      _getIconButton(
+        Platform.isIOS == false ? CupertinoIcons.add : Icons.add,
+        () => _openTransactionFormModal(context),
+      ),
+    ];
+    final PreferredSizeWidget appBar = Platform.isIOS == false
+        ? CupertinoNavigationBar(
+            middle: Text('Depesas Pessoais'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: actions,
+            ),
+          )
+        : AppBar(
+            title: Text(
+              'Depesas Pessoais',
+            ),
+            actions: actions,
+          );
+    final avaliableHeight = mediaQuery.size.height -
+        appBar.preferredSize.height -
+        mediaQuery.padding.top;
+
+    final bodyPage = SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            //if (isLandscape)
+            //Row(
+            //  mainAxisAlignment: MainAxisAlignment.center,
+            //  children: [
+            //    Text('Exibir Gráfico'),
+            //    Switch.adaptive(
+            //      activeColor: Theme.of(context).accentColor,
+            //      onChanged: (value) {
+            //        setState(() {
+            //          _showChart = value;
+            //        });
+            //      },
+            //    ),
+            //  ],
+            //),
+            if (_showChart || !isLandscape)
+              Container(
+                height: avaliableHeight * (isLandscape ? 0.8 : 0.3),
+                child: Chart(_recentTransactions),
+              ),
+            if (!_showChart || !isLandscape)
+              Container(
+                height: avaliableHeight * (isLandscape ? 1 : 0.7),
+                child: TransactionList(_transactions, _removeTransaction),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    return Platform.isIOS == false
+        ? CupertinoPageScaffold(
+            navigationBar: appBar,
+            child: bodyPage,
+          )
+        : Scaffold(
+            appBar: appBar,
+            body: bodyPage,
+            floatingActionButton: FloatingActionButton(
+              child: Icon(Icons.add),
+              onPressed: () => _openTransactionFormModal(context),
+            ),
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.centerFloat,
+          );
+  }
+}
+________________________________________________________________
+COMPONENTS
+_________________________________________________________________
+Adaptative Button
+
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'dart:io';
+
+class AdaptativeButton extends StatelessWidget {
+  final String label;
+  final Function onPressed;
+
+  AdaptativeButton({
+    this.label,
+    this.onPressed,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Platform.isIOS == false
+        ? CupertinoButton(
+            color: Theme.of(context).primaryColor,
+            child: Text(label),
+            onPressed: onPressed,
+            padding: EdgeInsets.symmetric(
+              horizontal: 20,
+            ),
+          )
+        : ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              primary: Theme.of(context).primaryColor,
+            ),
+            child: Text(label),
+            onPressed: onPressed,
+          );
+  }
+}
+___________________________________________________________________
+Adaptative Text Field
+____________________________________________________________________
+import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'dart:io';
+
+class AdaptativeTextField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final TextInputType keyboardType;
+  final Function(String) onSubmitted;
+
+  AdaptativeTextField({
+    this.label,
+    this.controller,
+    this.keyboardType = TextInputType.text,
+    this.onSubmitted,
+  });
+  
+  Widget build(BuildContext context) {
+    return Platform.isIOS == false
+        ? CupertinoTextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            onSubmitted: onSubmitted,
+            placeholder: label,
+          )
+        : TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            onSubmitted: onSubmitted,
+            decoration: InputDecoration(
+              labelText: label,
+            ),
+          );
+  }
+}
+__________________________________________________________________
+Chart Bar
+__________________________________________________________________
+
+import 'package:flutter/material.dart';
+
+class ChartBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final double percentage;
+
+  ChartBar({
+    this.label,
+    this.value,
+    this.percentage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (ctx, constrainst) {
+        return Column(
+          children: [
+            Container(
+              height: constrainst.maxHeight * 0.15,
+              child: FittedBox(
+                child: Text('${value.toStringAsFixed(2)}'),
+              ),
+            ),
+            SizedBox(height: constrainst.maxHeight * 0.05),
+            Container(
+              height: constrainst.maxHeight * 0.5,
+              width: 10,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.grey,
+                        width: 1.0,
+                      ),
+                      color: Color.fromARGB(220, 220, 220, 1),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                  FractionallySizedBox(
+                    heightFactor: percentage,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                    ),
+                  )
+                ],
+              ),
+            ),
+            SizedBox(height: constrainst.maxHeight * 0.05),
+            Container(
+              height: constrainst.maxHeight * 0.15,
+              child: FittedBox(
+                child: Text(label),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+__________________________________________________________________
+Chart
+___________________________________________________________________
+
+import 'package:expenses/components/chart_bar.dart';
+import 'package:flutter/material.dart';
+import '../models/transaction.dart';
+import 'package:intl/intl.dart';
+import 'chart_bar.dart';
+
+class Chart extends StatelessWidget {
+  final List<Transaction> recentTransaction;
+  Chart(this.recentTransaction);
+
+  List<Map<String, Object>> get groupedTransactions {
+    return List.generate(7, (index) {
+      final weekDay = DateTime.now().subtract(
+        Duration(days: index),
+      );
+
+      double totalSum = 0.00;
+
+      for (var i = 0; i < recentTransaction.length; i++) {
+        bool sameDay = recentTransaction[i].date.day == weekDay.day;
+        bool sameMonth = recentTransaction[i].date.month == weekDay.month;
+        bool sameYear = recentTransaction[i].date.year == weekDay.year;
+
+        if (sameDay && sameMonth && sameYear) {
+          totalSum += recentTransaction[i].value;
+        }
+      }
+
+      return {
+        'day': DateFormat.E().format(weekDay)[0],
+        'value': totalSum,
+      };
+    }).reversed.toList();
+  }
+
+  double get _weekTotalValue {
+    return groupedTransactions.fold(0.00, (sum, tr) {
+      return sum + tr['value'];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 6,
+      margin: EdgeInsets.all(20),
+      child: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: groupedTransactions.map((tr) {
+            return Flexible(
+              fit: FlexFit.tight,
+              child: ChartBar(
+                label: tr['day'],
+                value: tr['value'],
+                percentage: _weekTotalValue == 0
+                    ? 0
+                    : (tr['value'] as double) / _weekTotalValue,
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+_________________________________________________________________
+Transaction Form
+__________________________________________________________________
+import 'package:flutter/material.dart';
+import 'adaptative_text_field.dart';
+import 'package:intl/intl.dart';
+import 'adaptative_button.dart';
+
+class TransactionForm extends StatefulWidget {
+  final void Function(String, double, DateTime) onSubmit;
+  TransactionForm(this.onSubmit);
+
+  @override
+  _TransactionFormState createState() => _TransactionFormState();
+}
+
+class _TransactionFormState extends State<TransactionForm> {
+  final _titleController = TextEditingController();
+  final _valueController = TextEditingController();
+  DateTime _selectedDate = DateTime.now();
+
+  _submitForm() {
+    final title = _titleController.text;
+    final value = double.tryParse(_valueController.text) ?? 0.0;
+
+    if (title.isEmpty || value <= 0 || _selectedDate == null) {
+      return;
+    }
+    widget.onSubmit(title, value, _selectedDate);
+  }
+
+  _showDatePicker() {
+    showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2019),
+      lastDate: DateTime.now(),
+    ).then((pickedDate) {
+      if (pickedDate == null) {
+        return;
+      }
+      setState(() {
+        _selectedDate = pickedDate;
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Card(
+        elevation: 5,
+        child: Padding(
+          padding: EdgeInsets.only(
+            top: 10,
+            left: 10,
+            right: 10,
+            bottom: 10 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            children: <Widget>[
+              AdaptativeTextField(
+                label: 'Título',
+                controller: _titleController,
+                onSubmitted: (_) => _submitForm(),
+                ),
+              AdaptativeTextField(
+                label: 'Valor R\$',
+                controller: _valueController,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                onSubmitted: (_) => _submitForm(),
+              ),
+              Container(
+                height: 70,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _selectedDate == null
+                            ? 'Nenhuma data selecionada'
+                            : 'Data Selecionada: ${DateFormat('dd/MM/y').format(_selectedDate)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _showDatePicker,
+                      child: Text('Selecionar data'),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: <Widget>[
+                  AdaptativeButton(
+                    label: 'Nova Transação',
+                    onPressed: _submitForm,
+                  ),
+                  //ElevatedButton(
+                  //  onPressed: _submitForm,
+                  //  child: Text(
+                  //    'Nova Transação',
+                  //    style: TextStyle(
+                  //      color: Colors.white,
+                  //      fontWeight: FontWeight.bold,
+                  //    ),
+                  //  ),
+                  //),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+_______________________________________________________________
+Transactio List
+_______________________________________________________________
+import '../models/transaction.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+class TransactionList extends StatelessWidget {
+  final List<Transaction> transactions;
+  final void Function(String) onRemove;
+  TransactionList(this.transactions, this.onRemove);
+
+  @override
+  Widget build(BuildContext context) {
+    return transactions.isEmpty
+        ? LayoutBuilder(
+            builder: (ctx, constraints) {
+              return Column(
+                children: [
+                  SizedBox(
+                    height: 20,
+                  ),
+                  Text(
+                    'Nenhuma Transação Cadastrada !',
+                    style: Theme.of(context).textTheme.headline6,
+                  ),
+                  SizedBox(
+                    height: 20,
+                  ),
+                  Container(
+                    height: constraints.maxHeight * 0.6,
+                    child: Image.asset(
+                      'assets/images/waiting.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ],
+              );
+            },
+          )
+        : ListView.builder(
+            itemCount: transactions.length,
+            itemBuilder: (ctx, index) {
+              final tr = transactions[index];
+              return Card(
+                elevation: 6,
+                margin: EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 5,
+                ),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    radius: 30,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6.0),
+                      child: FittedBox(
+                        child: Text('R\$ ${tr.value}'),
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    tr.title,
+                    style: Theme.of(context).textTheme.headline6,
+                  ),
+                  subtitle: Text(
+                    DateFormat('dd MMM y').format(tr.date),
+                  ),
+                  trailing: MediaQuery.of(context).size.width > 400
+                      ? TextButton.icon(
+                          onPressed: () => onRemove(tr.id),
+                          icon: Icon(Icons.delete),
+                          label: Text(
+                            'Excluir',
+                            style: TextStyle(
+                              color: Theme.of(context).errorColor,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          onPressed: () => onRemove(tr.id),
+                          icon: Icon(Icons.delete),
+                          color: Theme.of(context).errorColor,
+                        ),
+                ),
+              );
+            },
+          );
+  }
+}
+__________________________________________________________________
+MODELS
+__________________________________________________________________
+Transaction
+__________________________________________________________________
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+
+class Transaction {
+  final String id;
+  final String title;
+  final double value;
+  final DateTime date;
+
+  Transaction({
+    @required this.id,
+    @required this.title,
+    @required this.value,
+    @required this.date,
+  });
+}
+__________________________________________________________________
+Pubspec.yaml
+___________________________________________________________________
+name: expenses
+description: A new Flutter project.
+
+# The following line prevents the package from being accidentally published to
+# pub.dev using `pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.7.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.16.1
+
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # To add assets to your application, add an assets section, like this:
+  assets:
+    - assets/images/waiting.png
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/assets-and-images/#resolution-aware.
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/assets-and-images/#from-packages
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  fonts:
+    - family: OpenSans
+      fonts:
+        - asset: assets/fonts/OpenSans-Bold.ttf
+        - asset: assets/fonts/OpenSans-Regular.ttf
+          weight: 700
+    - family: Quicksand
+      fonts:
+        - asset: assets/fonts/Quicksand-Regular.ttf
+        - asset: assets/fonts/Quicksand-Bold.ttf
+          weight: 700
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/custom-fonts/#from-packages
